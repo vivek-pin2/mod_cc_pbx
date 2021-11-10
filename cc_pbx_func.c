@@ -1765,13 +1765,47 @@ void handle_did_dest(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,
 			
  			handle_play_bck(channel,dsn,mutex,dst_id);
 			break;
-                /*case 11:
+                case 11:
                         handle_appointment(channel,dsn,mutex,call);
-                        break*/                                         
+                        break;                                        
 		default:
 			break;
 	}
 	return;
+	
+//appointment method 
+
+
+
+
+void  handle_appointment(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,call_details_t *call){
+
+        char * sql = NULL;
+
+        sql = switch_mprintf("SELECT * FROM `did` where `customer_id` = %s ", call->did.cust_id );
+        switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR," DID CALLBACK logs : %s\n",sql);
+        execute_sql_callback(dsn,mutex,sql,cg_init_callback,call);
+
+
+        switch_safe_free(sql);
+       // switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR," DID CALLBACK ERROR : %s\n",did->cust_id);
+
+
+
+   /*      char *query = NULL;
+         query = switch_mprintf("SELECT * FROM `did` WHERE `did` = %d ",call->did.did);
+
+         switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR," CG sql appointment : %d  \n",call->did.did );
+
+
+         execute_sql(dsn,query,mutex);
+         switch_safe_free(query);
+     */
+
+	
+	
+	
+	
 }
 static int tf_init_callback(void *parg,int argc,char **argv,char **column_names){
     tc_failover *tf = (tc_failover*) parg;
