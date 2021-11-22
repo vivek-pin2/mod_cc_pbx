@@ -11,6 +11,36 @@
 #define IS_NULL(x)  (x == NULL)?true:false
 #define MAX 10
 #define NULL ((void *)0)
+
+
+
+
+
+// appointment struct start.
+
+typedef struct {
+unsigned int apmt_id;
+char apmt_name;
+unsigned int welcome_prompt;
+unsigned int invalid_prompt;
+unsigned int tm_out_prompt;
+char  wc_pmt_path;
+char invalid_pmt_path;
+char tm_out_pmt_path;
+unsigned int phone_no1;
+unsigned int phone_no2;
+char grp_name;
+int contact_id;
+int grp_contact_id;
+unsigned int ext_no;
+
+
+}apmt_details_t;
+
+
+// appointment struct end.
+
+
 typedef struct {
     bool is_dnd;                                                                                                  
     bool is_init;
@@ -279,6 +309,8 @@ typedef struct {
 	call_frwd_t frwd[4]; // 4 -> all,busy,noans,unavail
         fmfm_details_t fmfm;
         mnt_detail_t mnt;
+	apmt_details_t apmt;
+
 } call_details_t;
 
 struct node
