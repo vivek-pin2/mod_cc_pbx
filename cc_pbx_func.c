@@ -636,7 +636,7 @@ static int outbound_mnt_callback(void *parg,int argc,char **argv,char **column_n
        if(!IS_NULL(argv[11]) && strlen(argv[11])){
            mnt->gw_id_prof=strdup(argv[11]);
          }
-        if(!IS_NULL(argv[12]) && strlen(argv[12])){
+        if(!IS_NULL(argv[12]) && strlen(argv[12]))Fec{
         mnt->is_mnt_plan=strdup(argv[12]);
         }
          if(!IS_NULL(argv[13]) && strlen(argv[13])){
