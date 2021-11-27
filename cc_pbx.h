@@ -13,29 +13,40 @@
 #define NULL ((void *)0)
 
 
-
-
-
-// appointment struct start.
+// appointment struct start.  
 
 typedef struct {
-unsigned int apmt_id;
-char apmt_name;
-unsigned int welcome_prompt;
-unsigned int invalid_prompt;
-unsigned int tm_out_prompt;
-char  wc_pmt_path;
-char invalid_pmt_path;
-char tm_out_pmt_path;
-unsigned int phone_no1;
-unsigned int phone_no2;
-char grp_name;
+char *apmt_id;
+char *apmt_name;
+char *wc_prompt;
+char * invalid_prompt;
+char * tm_out_prompt;
+char *wc_pmt_path;
+char *invalid_pmt_path;
+char *tm_pmt_path;
+char *phone_no1;
+char *phone_no2;
+char *grp_name;
 int contact_id;
 int grp_contact_id;
-unsigned int ext_no;
+char *name;
+char *ext_no;
+
 
 
 }apmt_details_t;
+
+
+typedef struct {
+int id;
+int    app_id;
+char   *did;
+char   *src;
+char   *time_slot;
+char   *time_interwal;
+
+
+}apmt_slots_details_t;
 
 
 // appointment struct end.
@@ -201,7 +212,7 @@ typedef struct {
 	double fixrate;
 	char * selling_rate;
 	char * conn_charge;
-	char num[20];
+	char num[20]; //did_no
         int crdt_lmt;
         int blnce;
         int billing_typ;
@@ -301,15 +312,16 @@ typedef struct {
 	conf_details_t conf;
 	queue_details_t cq;
 	ivr_details_t cv;
-        tc_details_t tc;
-        tc_failover  tf;
-	sta_details_t sta;
-        feture_details_t fd;
-	// time_details tm;
-	call_frwd_t frwd[4]; // 4 -> all,busy,noans,unavail
-        fmfm_details_t fmfm;
-        mnt_detail_t mnt;
-	apmt_details_t apmt;
+    tc_details_t tc;
+    tc_failover  tf;
+    sta_details_t sta;
+    feture_details_t fd;
+    // time_details tm;
+    call_frwd_t frwd[4]; // 4 -> all,busy,noans,unavail
+    fmfm_details_t fmfm;
+    mnt_detail_t mnt;  
+    apmt_details_t apmt;
+    apmt_slots_details_t apmt_slots;
 
 } call_details_t;
 
@@ -358,6 +370,13 @@ void printList(struct node *head);
 int  handle_cg_stcky_agnt(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,call_details_t *call);
 
 //cc_pbx_function
+
+//void  verify_apmt(switch_channel_t *channel,apmt_details_t *apmt,char * dsn,switch_mutex_t *mutex);
+void  verify_apmt_slots(switch_channel_t *channel,call_details_t *call,char * dsn,switch_mutex_t *mutex);
+void  handle_appointment(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,call_details_t *call );
+void  handle_appointment(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,call_details_t *call);
+
+
 void handle_prompt(switch_channel_t *channel ,const char* dialstatus);
 void handle_test(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex);
 bool is_black_listed(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,call_details_t *call);
@@ -370,7 +389,7 @@ void set_recording(switch_channel_t *channel,const char* type,call_details_t *ca
 void voicemail(switch_core_session_t *session,char *check,char *auth,const char *num);
 void bridge_call(switch_core_session_t *session,call_details_t *call,const char *dial_num);
 void check_call_frwd(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,call_details_t *call);
-void outbound(switch_core_session_t *session,char * dsn,switch_mutex_t *mutex,call_details_t *call,const char *num);
+bool outbound(switch_core_session_t *session,char * dsn,switch_mutex_t *mutex,call_details_t *call,const char *num);
 bool verify_did(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,did_details_t *did);
 bool verify_internal_exten(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,call_details_t *call,const char *num);
 void handle_conf(switch_channel_t *channel,call_details_t *call);
