@@ -1,0 +1,9 @@
+{
+    "C_Cpp.errorSquiggles": "Enabled",
+    "files.associations": {
+        "stdbool.h": "c",
+        "time.h": "c",
+        "crtdefs.h": "c",
+        "corecrt.h": "c"
+    }
+}

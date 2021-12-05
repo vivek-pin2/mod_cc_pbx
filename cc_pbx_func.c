@@ -1,4 +1,5 @@
 #include "cc_pbx.h"
+#include <switch_apr.h>
 
 
 static int exten_init_callback(void *parg,int argc,char **argv,char **column_names){
@@ -112,6 +113,7 @@ bool get_ext_details(switch_channel_t *channel,ext_detail_t *extn,char * dsn,swi
 
     return true;
 }
+
 bool is_black_listed(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,call_details_t *call){
 
     char *query = NULL;
@@ -407,6 +409,7 @@ static int call_frwd_callback(void *parg,int argc,char **argv,char **column_name
 
 
 void forward_call(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,call_details_t *call,int i){
+
        
 
         switch_core_session_t* session = switch_channel_get_session(channel);
@@ -674,8 +677,10 @@ bool outbound(switch_core_session_t *session,char * dsn,switch_mutex_t *mutex,ca
         int type;
         float total_blance;
         char *  cust_id = NULL;
-	char * currnt_call=NULL;
+	char * mnt_call_lmt=NULL;
+	char *currnt_call=NULL;
 	char is_call[20]={'\0'};
+	char is_mnt[20]={'\0'};
         char *tmp_num = NULL;
         char *query = NULL;
         char *mnt_call = NULL;
@@ -770,6 +775,12 @@ bool outbound(switch_core_session_t *session,char * dsn,switch_mutex_t *mutex,ca
                       execute_sql_callback(dsn,mutex,mnt_call,outbound_mnt_callback,&call->mnt);
                       switch_safe_free(mnt_call); 
                       switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"group : %s\n",call->mnt.remain_mnt);
+                      if (call->mnt.is_init==true){
+                       mnt_call_lmt =switch_mprintf ("call  varify_minute_call_status(%s,%d)",call->caller.cust_id,atoi(call->mnt.remain_mnt));
+                       execute_sql2str(dsn,mutex,mnt_call_lmt,is_mnt,NELEMS(is_mnt));
+
+                      switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"group : %s\n",is_mnt);
+
                       if(call->mnt.is_init==true && (atoi(call->mnt.group_mnt)>0 ) && (!strcmp(call->mnt.is_group,"1")) ){
                          call->flags.is_outbound_grp_mnt=true;
                          call->obd.talktime_mnt  =call->mnt.group_mnt;
@@ -779,7 +790,7 @@ bool outbound(switch_core_session_t *session,char * dsn,switch_mutex_t *mutex,ca
                          switch_channel_set_variable(channel,"billing_type","2");
                                return 1;
                                 }
-                      else if(call->mnt.is_init==true && (atoi(call->mnt.remain_mnt)>0 )&& (!strcmp(call->mnt.is_mnt_plan,"1"))   ){
+                      else if(call->mnt.is_init==true && (atoi(call->mnt.remain_mnt)>0 )&& (!strcmp(call->mnt.is_mnt_plan,"1")) &&  atoi(is_mnt)==1 ){
                                   call->obd.talktime_mnt  =call->mnt.remain_mnt;
                                   switch_channel_set_variable(channel,"is_mnt_plan",call->mnt.is_mnt_plan);
                                   switch_channel_set_variable(channel,"talking_mnt",call->mnt.remain_mnt);
@@ -789,9 +800,9 @@ bool outbound(switch_core_session_t *session,char * dsn,switch_mutex_t *mutex,ca
                                   switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"is_mnt_plan : %s\n",call->mnt.is_mnt_plan);
                                   return 1;
                                  }
-                            
+                    }
                        
-                   else{ 
+
                      
                 /* query=switch_mprintf("select a.billing_type,a.gateway_group_id,c.lc_type,d.id,d.call_plan_id,\
                       d.dial_prefix,d.buying_rate,d.selling_rate,d.selling_min_duration,d.selling_billing_block,\
@@ -913,7 +924,7 @@ bool outbound(switch_core_session_t *session,char * dsn,switch_mutex_t *mutex,ca
                    switch_channel_hangup(channel,SWITCH_CAUSE_CALL_REJECTED);
                    return 0;
                   }
-           }
+
             }else{
                 switch_ivr_play_file(session, NULL, "/home/cloudconnect/pbx_new/upload/def_prompts/balance_exhaust.wav", NULL);
                 switch_channel_hangup(channel,SWITCH_CAUSE_CALL_REJECTED);
@@ -1826,7 +1837,7 @@ void handle_did_dest(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,
                 case 13:
                         
                          handle_appointment(channel,dsn,mutex,call);
-                         //verify_apmt_slots(channel,call,dsn,mutex);
+                         //(channel,call,dsn,mutex);
                          
                         //verify_apmt(channel,&call->apmt,dsn,mutex);
                         
@@ -1848,7 +1859,7 @@ void handle_did_dest(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,
     apmt_details_t *apmt = (apmt_details_t*) parg;
 
 
-     if(argc < 15){
+     if(argc < 22){
         switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR," apmt  CALLBACK ERROR : NO DATA %d\n",argc);
         return -1;
     }
@@ -1908,13 +1919,29 @@ void handle_did_dest(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,
             
              apmt->contact_id      = atoi(argv[12]);
              apmt->grp_contact_id  = atoi(argv[13]);
-             apmt->ext_no    = atoi(argv[14]);
 
+             if(!IS_NULL(argv[14]) && strlen(argv[14])){
+          
+                apmt->ext_no        = strdup(argv[14]);
+               }
+
+              
+             
+                apmt ->dig_tm_out =atoi(argv[15]);
+                apmt ->intm_dig_out =atoi(argv[16]);
+                
+                apmt ->mx_tm_out =atoi(argv[17]);
+                apmt ->mx_invalid =atoi(argv[18]);
+
+              if(!IS_NULL(argv[19]) && strlen(argv[19])){
+               strcpy(apmt -> tm_interval, argv[19]);
+                               }
+                               
+
+                apmt -> is_ext              = atoi(argv[20]);
+                apmt -> is_pstn              = atoi(argv[21]);
                
-
-
-
-       
+             
                    
 return 0;
 
@@ -1929,7 +1956,7 @@ static int apmt_slots_init_callback(void *parg,int argc,char **argv,char **colum
     apmt_slots_details_t *apmt_slots= (apmt_slots_details_t*) parg;
 
 
-     if(argc < 4){
+     if(argc < 7){
         switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR," apmtslots  CALLBACK ERROR : NO DATA %d\n",argc);
         return -1;
     }
@@ -1952,21 +1979,32 @@ static int apmt_slots_init_callback(void *parg,int argc,char **argv,char **colum
           
              apmt_slots->did       = strdup(argv[2]);
                }
-              
+
+                             
                if(!IS_NULL(argv[3]) && strlen(argv[3])){
           
-             apmt_slots->src     = strdup(argv[3]);
+              apmt_slots->src     = strdup(argv[3]);
                }
 
-               if(!IS_NULL(argv[4]) && strlen(argv[4])){
-          
-             apmt_slots->time_slot    = strdup(argv[4]);
-               }
+              if(!IS_NULL(argv[4]) && strlen(argv[4])){
+               strcpy(apmt_slots -> date_slot,argv[4]);
+                }
 
-              /*   if(!IS_NULL(argv[5]) && strlen(argv[5])){
+              if(!IS_NULL(argv[5]) && strlen(argv[5])){
           
-             apmt_slots->time_interwal    = strdup(argv[5]);
-               } */
+              strcpy(apmt_slots -> time_start,argv[5]);
+
+                             }
+              if(!IS_NULL(argv[6]) && strlen(argv[6])){
+          
+              strcpy(apmt_slots -> time_end,argv[6]);
+              
+                             }
+              apmt_slots ->is_init = true;
+               
+                       
+             //apmt_slots->time_interwal  = strdup(argv[5]);
+              
                
                 
             
@@ -1977,67 +2015,16 @@ return 0;
 
 
 
-/*
-void  verify_apmt(switch_channel_t *channel,apmt_details_t *apmt,char * dsn,switch_mutex_t *mutex){        
-        
- 
-        char * sql = NULL;
-    
-                    
-        
-                
-                sql = switch_mprintf("SELECT pa.id AS apmt_id, pa.name AS apmt_name, pa.welcome_prompt, pa.invalid_prompt, pa.timeout_prompt,\
-          GROUP_CONCAT(DISTINCt pro.file_path) as welcome_pmt, GROUP_CONCAT(DISTINCt pro1.file_path) as invalid_pmt,\
-           GROUP_CONCAT(DISTINCt pro2.file_path) as timmeout_pmt, group_concat(DISTINCT pcl.phone_number1) AS phone_no1,\
-           Group_concat(DISTINCT pcl.phone_number2)AS phone_no2, GROUP_CONCAT(DISTINCT pcg.name) AS Group_Name,\
-           pcg.id AS Contact_ID, pcgm.id AS Group_Contact_ID, pcl.name ,em.ext_number  FROM pbx_appointment pa LEFT JOIN pbx_prompts pro on\
-           (pa.welcome_prompt = pro.id)LEFT join pbx_prompts pro1 on (pa.invalid_prompt = pro1.id) LEFT JOIN pbx_prompts pro2 on (pa.timeout_prompt = pro2.id)\
-           LEFT JOIN pbx_contact_group as pcg ON (pa.group_ids = pcg.id) LEFT JOIN pbx_contact_group_mapping AS pcgm ON (pcgm.contact_group_id = pcg.id)\
-           LEFT JOIN pbx_contact_list AS pcl ON pcl.id = (pcgm.contact_id ) LEFT JOIN pbx_appointment_mapping AS pam ON (pa.id = pam.appointment_id)\
-           LEFT JOIN extension_master AS em ON (pam.ref_id = em.id)  WHERE pa.id = '48'");
-          
-          
-          execute_sql_callback(dsn,mutex,sql,apmt_init_callback,apmt);
-          switch_safe_free(sql);
-
-       
-        
-          
-       // switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR," AMPT apmt_id  : %d \n",apmt->apmt_id);
-        
-          switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," apmt did id : %s\n",apmt->apmt_id);
-        
-    
-}
-*/
-
-
-
-
-void  verify_apmt_slots(switch_channel_t *channel,call_details_t *call,char * dsn,switch_mutex_t *mutex){        
-        char * sql = NULL;
-        const char* caller = switch_channel_get_variable(channel,"sip_from_user");
-             
-        const char *callee = switch_channel_get_variable(channel, "sip_req_user");
-       
-             
-              
-        
-               sql = switch_mprintf(" SELECT `id`, `app_id`, `did`, `src`, `time_slot` FROM `pbx_appointment_slots` WHERE did = %s AND \
-               src = %s LIMIT 1",callee, caller );
-               execute_sql_callback(dsn,mutex,sql,apmt_slots_init_callback,&call->apmt_slots);
-               switch_safe_free(sql);
-}
-
-
 
 void book_appointment(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,call_details_t *call)
 {
-         int32_t max_tries = 2;     //audio play
-          uint32_t digit_timeout =2000;
-          int timeout = 15000;
+          // int32_t max_tries = 2;    
+          // uint32_t digit_timeout =2000;
+          //int timeout = 15000;
+          char *apmt_sql = NULL;
           char digit_buffer[128] ;
-          const char *bad_input_audio_file =NULL;
+          //const char *bad_input_audio_file = switch_mprintf("/var/www/html/pbx/app/%s",call->apmt.invalid_pmt_path);
+          const char *bad_input_audio_file = NULL;
           const char *var_name = NULL;
           const char *valid_terminators = "#";
           const char *digits_regex ="[0-9]+";
@@ -2045,91 +2032,273 @@ void book_appointment(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex
           uint8_t min = 1;  
           uint8_t max = 1;
           char *audio_wel="/var/www/html/pbx/app//assets/prompts/333/prompts/generalprompt_1637852617470_wel_apmt.wav";
-          char *audio_slt="/var/www/html/pbx/app/assets/prompts/333/prompts/generalprompt_1637862720305_apmt_slotf.wav";
+         // char *audio_slt="/var/www/html/pbx/app/assets/prompts/333/prompts/generalprompt_1637862720305_apmt_slotf.wav";
           const char * result= NULL; 
-          
-         switch_core_session_t* session = switch_channel_get_session(channel);
+          char * insert_str=NULL;
+          //char *invalid_pmt=NULL;
+          //char add_intv = atoi(call->apmt.tm_interval); 
+          const char* caller = switch_channel_get_variable(channel,"sip_from_user");
+          switch_core_session_t* session = switch_channel_get_session(channel);
+          char res_time[100];
+          time_t t;
 
-         sound_A_play:
-         switch_play_and_get_digits(session, min, max, max_tries, timeout, valid_terminators,
-                                audio_wel, bad_input_audio_file, var_name, digit_buffer, sizeof(digit_buffer),
-                                  digits_regex, digit_timeout, transfer_on_failure);
-         result =strdup(digit_buffer);
+          switch_time_exp_t tm;
+          char date[50] = "";
+          switch_size_t retsize;
+          switch_time_t ts;
+          ts = switch_time_now();
+          switch_time_exp_lt(&tm, ts);
+          switch_strftime(date,&retsize,sizeof(date),"%Y-%m-%d %T",&tm);
+         
+         /* Retrieve the current time */
+            t = time(NULL);
+      
+         /* Output the current year into the result string */
+             strftime(res_time, sizeof(res_time), "%H:%M:%S", localtime(&t));
+      
+         
+          
+
+          
+          
         
-		  	    	if (atoi(result) == 1)
+          
+        //welcome prmt ivr 
+
+         switch_play_and_get_digits(session, min, max, call->apmt.mx_invalid , call->apmt.mx_tm_out, valid_terminators,
+                                audio_wel, bad_input_audio_file, var_name, digit_buffer, sizeof(digit_buffer),
+                                  digits_regex, (call->apmt.dig_tm_out)*1000 , transfer_on_failure);
+           result =strdup(digit_buffer);
+
+
+           switch (atoi(result))
+           {
+             case 1:
+             {
+           /*   apmt_sql = switch_mprintf( "SELECT time_start , time_end, pbx_appointment_slots.app_id from (select time_start, time_end ,\
+            app_id from pbx_appointment_slots WHERE CURRENT_TIME < time_end) pbx_appointment_slots WHERE time_end > ADDTIME( time_start , '00:30:0000')\
+            AND pbx_appointment_slots.app_id= 75 ORDER BY time_end DESC LIMIT 1" ); */
+
+
+            
+              apmt_sql = switch_mprintf( " SELECT `id` , `app_id` , `did` ,`src`, `date_slot` , `time_start`, `time_end` FROM pbx_appointment_slots \
+              WHERE app_id = %s AND time_end > ADDTIME( time_start , '00:30:0000 ') AND    date_slot = CURRENT_DATE\
+              ORDER BY time_end DESC LIMIT 1", call->apmt.apmt_id);
+
+
+
+                 execute_sql_callback(dsn,mutex,apmt_sql,apmt_slots_init_callback,&call->apmt_slots);
+                 switch_safe_free(apmt_sql);
+                                
+
+
+             switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," TIME END : %s APP_ID : %d TIME START : %s \n",call->apmt_slots.time_end, call->apmt_slots.app_id, call->apmt_slots.time_start); 
+             switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," Time %d", atoi(res_time));
+
+             if (atoi(call->apmt_slots.time_end) <= atoi(res_time) || call->apmt_slots.time_end == NULL)
+             {
+
+              insert_str=switch_mprintf("INSERT INTO `cc_master`.`pbx_appointment_slots` (`app_id`, `did`, `src`,\
+                       `date_slot`, `time_start`, `time_end`) VALUES ('%s', '%s', '%s', '%s', '%s', ' %i:%i:%i' )\
+                       ",call->apmt.apmt_id,call->did.num,caller,date,date,  tm.tm_hour,tm.tm_min + atoi(call->apmt.tm_interval) , tm.tm_sec);
+                        execute_sql(dsn,insert_str,mutex); 
+                        switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"insert_string : %s",insert_str);
+                        switch_safe_free(insert_str);
+               switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," Appointment Booked For DATE: %s AND TIME: %s  ", date, res_time);
+               switch_ivr_play_file(session, NULL,"/var/www/html/pbx/app//assets/prompts/333/prompts/generalprompt_1638641798394_apmt_booked.wav",NULL);
+
+
+
+             }
+
+              break;
+              }
+
+              case 2:
+              {
+
+              
+                 switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"Towmorow  slot is booked ");
+
+                         insert_str=switch_mprintf("INSERT INTO `cc_master`.`pbx_appointment_slots` (`app_id`, `did`, `src`, `date_slot`, `time_start`, `time_end`)\
+                         VALUES ('%s', '%s', '%s',DATE_ADD(CURDATE(),INTERVAL 1 DAY),CURRENT_TIME,' %i:%i:%i')",
+                         call->apmt.apmt_id,call->did.num,caller, tm.tm_hour,tm.tm_min + atoi(call->apmt.tm_interval) , tm.tm_sec);
+                         execute_sql(dsn,insert_str,mutex); 
+                         switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"insert_string : %s",insert_str);
+                         switch_safe_free(insert_str);
+
+                        switch_ivr_play_file(session, NULL,"/var/www/html/pbx/app//assets/prompts/333/prompts/generalprompt_1638641798394_apmt_booked.wav",NULL);
+               
+                break;
+              }
+              
+
+
+                default:
+             break;
+        }
+        /* 
+		    	if (atoi(result) == 1)  // today
                       
-                    {  
-                        voice:
-                        switch_play_and_get_digits(session, min, max, max_tries, timeout, valid_terminators,
-                                audio_slt, bad_input_audio_file, var_name, digit_buffer, sizeof(digit_buffer),
-                                  digits_regex, digit_timeout, transfer_on_failure);
-                                  result =strdup(digit_buffer);
-                             	switch(atoi(result))
-                               {
-                                  case 1:  
-                                         switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"YOUR  today slot is booked  MORNING");
-                                          break;
-                                  case 2:  
-                                         switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"YOUR  today slot is booked  AFTERNOON");
-                                          break;
-                                  case 3:  
-                                         switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"YOUR  today slot is booked  EVENING");
-                                          break;
-                                  case 9:  
+          {  
+              
+              
+
+             	switch(atoi(result))
+            
+                   {
+                        case 1:  
+                        
+                       insert_str=switch_mprintf("INSERT INTO `cc_master`.`pbx_appointment_slots` (`app_id`, `did`, `src`,\
+                       `date_slot`, `time_start`, `time_end`) VALUES ('%s', '%s', '%s', '%s', '%s', ' %i:%i:%i' )\
+                       ",call->apmt.apmt_id,call->did.num,caller,date,date,  tm.tm_hour,tm.tm_min + atoi(call->apmt.tm_interval) , tm.tm_sec);
+                        execute_sql(dsn,insert_str,mutex); 
+                        switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"insert_string : %s",insert_str);
+                        switch_safe_free(insert_str);
+                              
+                              
+                               switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"YOUR  today slot is booked  MORNING");
+                              
+                        
+                                break;
+                        case 2:  
+                               
+                               switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"YOUR  today slot is booked  AFTERNOON");
+                        
+                                break;
+                        case 3:  
+                            
+                               switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"YOUR  today slot is booked  EVENING");
+                               
+                                break;
+                        case 9:  
                                          switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"TO REPEAT ");
                                          goto voice;
                                           break;
-                               }      
+
+
+                                  
+                  }    
+                           
                        
-                      } 
+                 }  
                      
 
 
-                      else if (atoi(result) == 2)
+                    else if (atoi(result) == 2)
                         {
                           
-              switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"Towmorow  slot is booked ");
+                         switch_play_and_get_digits(session, min, max, call->apmt.mx_invalid , call->apmt.mx_tm_out, valid_terminators,
+                          audio_slt, bad_input_audio_file, var_name, digit_buffer, sizeof(digit_buffer),
+                          digits_regex, (call->apmt.dig_tm_out)*1000 , transfer_on_failure);
+                          result =strdup(digit_buffer);
+
+                           switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"Towmorow  slot is booked ");
+
+                         insert_str=switch_mprintf("INSERT INTO `cc_master`.`pbx_appointment_slots` (`app_id`, `did`, `src`, `date_slot`, `time_start`, `time_end`)\
+                         VALUES ('%s', '%s', '%s',DATE_ADD(CURDATE(),INTERVAL 1 DAY),CURRENT_TIME,' %i:%i:%i')",
+                         call->apmt.apmt_id,call->did.num,caller, tm.tm_hour,tm.tm_min + atoi(call->apmt.tm_interval) , tm.tm_sec);
+                         execute_sql(dsn,insert_str,mutex); 
+                         switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"insert_string : %s",insert_str);
+                         switch_safe_free(insert_str);
+
                     
                         }
 
-                   else if (atoi(result) == '#'){
+                   else {
+
+                  invalid_pmt = switch_mprintf("/var/www/html/pbx/app/%s",call->apmt.invalid_pmt_path);
+
+
+                  switch_ivr_play_file(session, NULL,invalid_pmt,NULL);
                   switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," Invalid input is press plz select 1 or 2 ");
-                  goto  sound_A_play;
+                  
                       }
        
-        if(strlen(result)==4)
-             result=switch_mprintf("%s%s",call->caller.cust_id,result);
-           switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"Dial_string : %s\n",digit_buffer);
-           switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"agent :%s\n",result);
-           eaves_drop(session, result,call,dsn,mutex);
-           /*  {
-           switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"YOUR  today slot is booked ");
-         } */
-           
-         
-         
-           switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"Dial_string :\n");
+                
+             switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"Dial_string :\n");
+
+
+             */
         
-        
-                  
-           
-        /* if(result ==1){
-         switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"YOUpress 1 for today :");
-        switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"YOUR SLOT IS BOOKED  \n APMT ID  DETAILS : %d",call->did.dst_id);
-           wel_pmt = switch_mprintf("/home/cloudconnect/pbx_new/upload/%s",call->apmt.wc_pmt_path);
-              switch_ivr_play_file(session, NULL,wel_pmt,NULL); 
-           } */
-
-
-     /*        insert_str=switch_mprintf("INSERT INTO `cc_master`.`pbx_appointment_slots` (`app_id`, `did`, `src`,\
-                          `time_slot`, `time_interwal`) VALUES\
-                           (%s, '%s', '%s',' %s', adddate(current_timestamp, interval 30  HOUR_MINUTE)\
-                           ",call->apmt.apmt_id,call->did.num,caller,date);
-               execute_sql(dsn,insert_str,mutex); 
-               switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"insert_string : %s",insert_str);
-               switch_safe_free(insert_str); */
-
 }
+
+
+
+bool verify_apmt_slots(switch_channel_t *channel,call_details_t *call,char * dsn,switch_mutex_t *mutex){        
+        char * sql = NULL; 
+        char *time_sql = NULL;
+        char digit_buffer[128] ;
+        const char* caller = switch_channel_get_variable(channel,"sip_from_user");
+     
+        switch_core_session_t* session = switch_channel_get_session(channel);
+        switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"Caller number : %s and apmt_slot_number :%s",caller, call->apmt.apmt_id);    
+
+              time_sql =switch_mprintf("SELECT pas.id, pas.app_id, pas.did, pas.src, pas.date_slot, pas.time_start, pas.time_end, pa.time_interval \
+              FROM `pbx_appointment_slots` as pas LEFT JOIN pbx_appointment as pa on pas.app_id = pa.id WHERE CURRENT_TIME BETWEEN pas.time_start\
+              AND pas.time_end AND pas.date_slot = CURRENT_DATE   AND pas.src = %s limit 1", caller);
+              
+
+              switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"today src on time sql  : %s\n",time_sql); 
+              execute_sql_callback(dsn,mutex,time_sql,apmt_slots_init_callback,&call->apmt_slots);
+              switch_safe_free(time_sql); 
+
+              
+               
+              
+
+              if(call->apmt_slots.src == NULL){
+                 switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR," YOUR SLOT IS NOT BOOKED \n INVALID PATH : %s",call->apmt.invalid_pmt_path);
+                 
+                 sql = switch_mprintf("SELECT `id` , `app_id` , `did` ,`src`, `date_slot` , `time_start`, `time_end`  FROM pbx_appointment_slots\
+                 WHERE src = %s AND CURRENT_TIME < time_end  LIMIT 1 ", caller );
+                 execute_sql_callback(dsn,mutex,sql,apmt_slots_init_callback,&call->apmt_slots);
+                 switch_safe_free(sql);
+
+                 if ( call->apmt_slots.src != NULL)
+                 {
+
+                   switch_play_and_get_digits(session,1 ,1 , 1,15000, "#","/var/www/html/pbx/app//assets/prompts/333/prompts/generalprompt_1638599889238_Delete_apmt.wav",NULL , NULL, digit_buffer,
+                                sizeof(digit_buffer),"[0-9]+", 2000, NULL);
+                          
+                   if (atoi(digit_buffer) == 2)
+                   {
+                   sql = switch_mprintf("DELETE FROM pbx_appointment_slots WHERE src = %s LIMIT 1 ", caller );
+                   switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR," apmt delete sql : %s",sql);
+                   execute_sql_callback(dsn,mutex,sql,apmt_slots_init_callback,&call->apmt_slots);
+                   switch_safe_free(sql);
+                   
+
+
+                   }
+                   else
+                   {
+                    switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR," APMT date & time : %s %s",call->apmt_slots.date_slot,call->apmt_slots.time_start);
+                   }
+
+                
+
+                 }
+
+                 else
+                 {
+              
+                 switch_ivr_play_file(session, NULL,"/var/www/html/pbx/app//assets/prompts/333/prompts/generalprompt_1638444856440_not_apmt.wav",NULL);
+                  book_appointment(channel,dsn,mutex,call);
+                
+                 }
+
+                      return false;
+                  }
+                 switch_channel_set_variable(channel,"ann_pmt","app_id");
+
+                return true;
+
+               
+                             
+}
+
+
 
 //appointment handle
 
@@ -2137,227 +2306,99 @@ void book_appointment(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex
 
   void  handle_appointment(switch_channel_t *channel,char * dsn,switch_mutex_t *mutex,call_details_t *call){        
            
-           /*  char *audio_file="/home/cloudconnect/pbx_new/upload/def_prompts/speech.wav";
-               char result[20] = {'\0'}; 
-               const char recording_path[] = "/home/cloudconnect/pbx_new/upload";
-               char src[20]={0};
-               char *call_frwd=NULL;
-            */
- 
-            //struct stack *pt = newStack(5);
-            char * sql = NULL;
-            
-            //char did_call[20]={'\0'};
-            //char * insert_str=NULL;
-            switch_time_exp_t tm;
-            char date[50] = "";
-            switch_size_t retsize;
-            switch_time_t ts;
-            char *wel_pmt=NULL;
-            char *invalid_pmt=NULL;
-            
-        const char* caller = switch_channel_get_variable(channel,"sip_from_user");
-             
-        const char *callee = switch_channel_get_variable(channel, "sip_req_user");
-        const char* ext_id = switch_channel_get_variable(channel,"ext_id");
-        
-        
-            
-               switch_core_session_t* session = switch_channel_get_session(channel);
-
-               ts = switch_time_now();
+  char *wel_pmt = NULL;
+  char * sql = NULL;
+  switch_time_exp_t tm;
+  char date[50] = "";
+  switch_size_t retsize;
+  switch_time_t ts;
+      
+      
+  const char* caller = switch_channel_get_variable(channel,"sip_from_user");
+  const char *callee = switch_channel_get_variable(channel, "sip_req_user");
+  const char* ext_id = switch_channel_get_variable(channel,"ext_id");
+  
+        switch_core_session_t* session = switch_channel_get_session(channel);
+        ts = switch_time_now();
                switch_time_exp_lt(&tm, ts);
-               switch_strftime(date,&retsize,sizeof(date),"%Y-%m-%d-%T",&tm);
+               switch_strftime(date,&retsize,sizeof(date),"%Y-%m-%d %T",&tm);
 
-	 
-            
-            
-
-              switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," apmt src  : %s\n",caller);
               switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," apmt src  : %s %s %s \n",caller, callee, ext_id);
               
             
-             
-            
-
-                    
-        
-                
-                sql = switch_mprintf("SELECT pa.id AS apmt_id, pa.name AS apmt_name, pa.welcome_prompt, pa.invalid_prompt, pa.timeout_prompt,\
-            pro.file_path AS wc_pmt_path, pro1.file_path AS invalid_pmt_path,\
-            pro2.file_path AS  tm_pmt_path , group_concat(DISTINCT pcl.phone_number1) AS phone_no1,\
-           Group_concat(DISTINCT pcl.phone_number2)AS phone_no2, GROUP_CONCAT(DISTINCT pcg.name) AS Group_Name,\
-           pcg.id AS Contact_ID, pcgm.id AS Group_Contact_ID, pcl.name ,em.ext_number  FROM pbx_appointment pa LEFT JOIN pbx_prompts pro on\
-           (pa.welcome_prompt = pro.id)LEFT join pbx_prompts pro1 on (pa.invalid_prompt = pro1.id) LEFT JOIN pbx_prompts pro2 on (pa.timeout_prompt = pro2.id)\
-           LEFT JOIN pbx_contact_group as pcg ON (pa.group_ids = pcg.id) LEFT JOIN pbx_contact_group_mapping AS pcgm ON (pcgm.contact_group_id = pcg.id)\
-           LEFT JOIN pbx_contact_list AS pcl ON pcl.id = (pcgm.contact_id ) LEFT JOIN pbx_appointment_mapping AS pam ON (pa.id = pam.appointment_id)\
-           LEFT JOIN extension_master AS em ON (pam.ref_id = em.id)  WHERE pa.id = %d ", call->did.dst_id );
+      sql = switch_mprintf("SELECT pa.id AS apmt_id, pa.name AS apmt_name, pa.welcome_prompt, pa.invalid_prompt, pa.timeout_prompt,\
+      pro.file_path AS wc_pmt_path, pro1.file_path AS invalid_pmt_path,\
+      pro2.file_path AS  tm_pmt_path , group_concat(DISTINCT pcl.phone_number1) AS phone_no1,\
+      Group_concat(DISTINCT pcl.phone_number2)AS phone_no2, GROUP_CONCAT(DISTINCT pcg.name) AS Group_Name,\
+      pcg.id AS Contact_ID, pcgm.id AS Group_Contact_ID, pcl.name ,em.ext_number, pa.digit_timeout, pa.intermediate_timeout ,pa.max_timeout_count,\
+      pa.max_invalid_count , pa.time_interval, pa.is_extension, pa.is_pstn FROM pbx_appointment pa LEFT JOIN pbx_prompts pro on\
+      (pa.welcome_prompt = pro.id)LEFT join pbx_prompts pro1 on (pa.invalid_prompt = pro1.id) LEFT JOIN pbx_prompts pro2 on (pa.timeout_prompt = pro2.id)\
+      LEFT JOIN pbx_contact_group as pcg ON (pa.group_ids = pcg.id) LEFT JOIN pbx_contact_group_mapping AS pcgm ON (pcgm.contact_group_id = pcg.id)\
+      LEFT JOIN pbx_contact_list AS pcl ON pcl.id = (pcgm.contact_id ) LEFT JOIN pbx_appointment_mapping AS pam ON (pa.id = pam.appointment_id)\
+      LEFT JOIN extension_master AS em ON (pam.ref_id = em.id)  WHERE pa.id = %d ", call->did.dst_id );
           
           
-          execute_sql_callback(dsn,mutex,sql,apmt_init_callback,&call->apmt);
-          switch_safe_free(sql);
+     execute_sql_callback(dsn,mutex,sql,apmt_init_callback,&call->apmt);
+     switch_safe_free(sql);
 
-           
-           if (caller == call->apmt_slots.src)
+    
+				
 
-           { 
-              switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"YOUR SLOT IS BOOKED  \n APMT ID  DETAILS : %d",call->did.dst_id);
-               wel_pmt = switch_mprintf("/var/www/html/pbx/app/%s",call->apmt.wc_pmt_path);
-     
-                switch_ivr_play_file(session, NULL,wel_pmt,NULL);
-
-              if (call->apmt_slots.time_slot == date)
-              {
-
-                   switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"YOUR SLOT IS BOOKED  \n APMT ID  DETAILS : %d",call->did.dst_id);
- 
-              }
-           }
-
-
-
-           
-          
-            
-           if (caller != call->apmt_slots.src)
-            {
-              switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," YOUR SLOT IS NOT BOOKED \n INVALID PATH : %s",call->apmt.invalid_pmt_path);
-               invalid_pmt = switch_mprintf("/var/www/html/pbx/app/%s",call->apmt.invalid_pmt_path);
-     
-                
-
-              book_appointment(channel,dsn,mutex,call);
-              switch_ivr_play_file(session, NULL,invalid_pmt,NULL);
-              
-
-                
-
-            }
-            
-
-              
-              
-             verify_did(channel, dsn, mutex, &call->did);
-
-           
-
-        //  verify_apmt_slots(channel,call,dsn,mutex);
-
-
-           /* if (!zstr(call->apmt_slots.did)){
-             switch_channel_set_variable(channel,"ext_id",call->apmt_slots.did);
-                  switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR,"EXT ID APMT Caller:%s\n",call->apmt_slots.did);   
-           }
-       if ( caller == call->apmt_slots.src)
-       
-        
-        {
-         switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," apmt src  : %s\n",call->apmt_slots.src);
-        }
-
-        
-        if (call->apmt_slots.time_slot !=NULL )
-       
+       if (verify_apmt_slots(channel,call,dsn,mutex) )
        {
+         if(call->apmt_slots.src != NULL){
+    
+                switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," TIME -> %i:%i:%i ", tm.tm_hour,tm.tm_min, tm.tm_sec); 
+                switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," DATE -> %i:%i:%i ", tm.tm_year + 1900,tm.tm_mon +1 ,tm.tm_mday); 
 
-        switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," apmt TIME SLOT : %s\n",call->apmt_slots.time_slot);
-        
 
-        }
-         
-        if (caller != call->apmt_slots.src )
-        {
-        insert_str=switch_mprintf("INSERT INTO `cc_master`.`pbx_appointment_slots` (`app_id`, `did`, `src`,\
-                          `time_slot`, `time_interwal`) VALUES\
-                           (%s, '%s', '%s',' %s', adddate(current_timestamp, interval 30  HOUR_MINUTE)\
-                           ",call->apmt.apmt_id,call->did.num,caller,date);
-               execute_sql(dsn,insert_str,mutex); 
-               switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"insert_string : %s",insert_str);
-               switch_safe_free(insert_str);
-        }
- */
-        
-  
-        
-         
-            
-            
-
-        
-
-       
-
-        /* 
-          
-       // switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR," AMPT apmt_id  : %d \n",apmt->apmt_id);
-        
-          switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," apmt did id : %s\n",call->apmt.apmt_id);
-          switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO," apmt did number : %s\n",call->did.num); 
-          
-          //verify_apmt_slots(channel,&call->apmt_slots,dsn,mutex);          
-           call_frwd = switch_mprintf("SELECT `time_slot` FROM `pbx_appointment_slots`\
-           WHERE `did` = 1171366697 AND `app_id` = 48" );
-
-           execute_sql2str(dsn,mutex,call_frwd,src,NELEMS(src));
-           switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE,"Exten query: %s\n",src); */
-          
+               switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_NOTICE," RUNNING APMT TIME %s \n",call->apmt_slots.time_start);
              
-                    // switch_channel_set_variable(channel,"call_type","call_ivr");
-                      //  handle_ivr(channel, dsn,mutex,call,pt,1);  
-
-                   
-              // ivr(session,7,14,audio_file,result,call,dsn,mutex);
-     
-    
- 
-    
-
-
-            
-     /* 
- *concurrent call exsulated 
- *
-            if(!atoi(did_call)){
-        switch_ivr_play_file(session, NULL, "/home/cloudconnect/pbx_new/upload/def_prompts/cc_limit_exhaust.wav", NULL);
-        switch_channel_hangup(channel,SWITCH_CAUSE_CALL_REJECTED);
-                return ;
-               }
                
-     */
+               wel_pmt = switch_mprintf("/var/www/html/pbx/app/%s",call->apmt.wc_pmt_path);
+
                
-           
-               switch_core_session_execute_application(session,"set","RECORD_STEREO=true");
-               switch_core_session_execute_application(session,"set","media_bug_answer_req=true");
-               /*
-               insert_str=switch_mprintf("INSERT INTO `cc_master`.`pbx_appointment_slots` (`app_id`, `did`, `src`,\
-                          `time_slot`, `time_interwal`) VALUES\
-                           (%s, '%s', '%s',' %s', CURRENT_TIME())\
-                           ",call->apmt.apmt_id,call->did.num,caller,date);
-               execute_sql(dsn,insert_str,mutex); 
-               switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_INFO,"insert_string : %s",insert_str);
-               
+                if ((call->apmt.is_ext == true) )   
+                {       
+
+                 switch_ivr_play_file(session, NULL,wel_pmt,NULL);
+                          
+                  bridge_call(session,call,call->apmt.ext_no);
+
+                  return ;
+                }
+
+                else if (call->apmt.is_pstn == true  )
+                { 
+                  switch_ivr_play_file(session, NULL,wel_pmt,NULL);
+                   call->caller.cust_id=call->did.cust_id;
+                
+                   switch_log_printf(SWITCH_CHANNEL_LOG,SWITCH_LOG_ERROR," CQ _SQL : %s\n", call->apmt.phone_no1);    
+                  
+                  
+                   outbound(session,dsn,mutex,call,call->apmt.phone_no1);
+                   bridge_call(session,call,call->apmt.phone_no1);
+                                  
+                  
+                  return ;
+
+                }
+
+                 
+           }
               
-               switch_channel_set_variable(channel,"set_recording","1");
-               switch_channel_set_variable(channel,"recording_path",recording_path);
-               switch_channel_set_variable(channel,"rec_cust_id",call->caller.cust_id);
-          
-               switch_channel_set_variable(channel,"rec_num",call->caller.num);
-                switch_channel_set_variable(channel,"rec_caller",caller);
-               switch_channel_set_variable(channel,"rec_date",date);
-
-               switch_safe_free(insert_str);
-               */
+                    
               
-               
-           
-               
+    
+       }
 
-         
 
        
-      
-    
-}
+  }
+
+
+
+
 
 
 static int tf_init_callback(void *parg,int argc,char **argv,char **column_names){
@@ -2423,6 +2464,7 @@ void handle_tc_failover(switch_channel_t *channel,char * dsn,switch_mutex_t *mut
                   case 5:
                         if(verify_internal_exten(channel,dsn,mutex,call,dst_id)){
                                 if(call->cg.is_init){
+                                  
 
                                         sscanf(caller,"%s",call->caller.num);
                                         call->caller.cust_id=call->did.cust_id;
